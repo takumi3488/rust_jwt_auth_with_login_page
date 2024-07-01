@@ -43,3 +43,9 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
+
+    - name: Merge to main
+      env:
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        GH_TOKEN: ${{ github.token }}
+      run: gh pr merge $PR_NUMBER --merge --auto
