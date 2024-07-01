@@ -536,8 +536,10 @@ name = "rust_jwt_auth_with_login_page"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "http-body-util",
  "serde",
  "tokio",
+ "tower",
  "tracing",
  "tracing-subscriber",
 ]
