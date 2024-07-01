@@ -97,9 +97,7 @@ mod tests {
                     .method(Method::POST)
                     .uri("/")
                     .header("content-type", "application/x-www-form-urlencoded")
-                    .body(Body::from(
-                        "email=example%40example.com",
-                    ))
+                    .body(Body::from("email=example%40example.com"))
                     .unwrap(),
             )
             .await
