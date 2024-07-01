@@ -31,16 +31,10 @@ async fn show_form() -> Html<&'static str> {
             <head></head>
             <body>
                 <form action="/" method="post">
-                    <label for="name">
-                        Enter your name:
-                        <input type="text" name="name">
-                    </label>
-
                     <label>
                         Enter your email:
                         <input type="text" name="email">
                     </label>
-
                     <input type="submit" value="Subscribe!">
                 </form>
             </body>
@@ -52,7 +46,6 @@ async fn show_form() -> Html<&'static str> {
 #[derive(Deserialize, Debug)]
 #[allow(dead_code)]
 struct Input {
-    name: String,
     email: String,
 }
 
