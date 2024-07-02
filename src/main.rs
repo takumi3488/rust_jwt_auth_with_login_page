@@ -36,8 +36,8 @@ async fn show_form() -> Html<&'static str> {
             <body>
                 <form action="/" method="post">
                     <label>
-                        Enter your email:
-                        <input type="text" name="email">
+                        Enter your password:
+                        <input type="password" name="password">
                     </label>
                     <input type="submit" value="Subscribe!">
                 </form>
@@ -50,7 +50,7 @@ async fn show_form() -> Html<&'static str> {
 #[derive(Deserialize, Debug)]
 #[allow(dead_code)]
 struct Input {
-    email: String,
+    password: String,
 }
 
 async fn accept_form(Form(input): Form<Input>) {
@@ -85,7 +85,7 @@ mod tests {
         assert_eq!(response.status(), 200);
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let text = from_utf8(&body).unwrap();
-        assert!(text.contains("Enter your email"));
+        assert!(text.contains("Enter your password:"));
     }
 
     #[tokio::test]
@@ -97,7 +97,7 @@ mod tests {
                     .method(Method::POST)
                     .uri("/")
                     .header("content-type", "application/x-www-form-urlencoded")
-                    .body(Body::from("email=example%40example.com"))
+                    .body(Body::from("password=1234"))
                     .unwrap(),
             )
             .await
