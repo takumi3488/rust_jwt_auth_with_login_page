@@ -3,14 +3,16 @@ name: Release
 permissions:
   packages: write
   contents: write
+  pull-requests: write
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 on:
-  pull_request:
-    branches: [main]
+  push:
+    branches:
+      - release/*
 
 jobs:
   build-and-release:
@@ -35,18 +37,41 @@ jobs:
       with:
         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
 
+    - name: Extract version from Cargo.toml
+      id: version
+      run: |
+        tag=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)
+        echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
     - name: Build and push
       uses: docker/build-push-action@v5
       with:
         context: .
         push: true
-        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.tag }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
-    - name: Merge to main
+    - name: Merge to develop
       env:
-        PR_NUMBER: ${{ github.event.pull_request.number }}
         GH_TOKEN: ${{ github.token }}
-      run: gh pr merge $PR_NUMBER --merge --auto
+      run: |
+        gh pr create -B develop -t "release: v${{ steps.version.outputs.tag }}" -b "Release ${{ steps.version.outputs.tag }}" && \
+        gh pr merge --merge
+
+    - name: Merge develop to main
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        gh pr create -B main -t "release: v${{ steps.version.outputs.tag }}" -b "Release ${{ steps.version.outputs.tag }}" -H develop && \
+        gh pr merge --merge
+
+    - name: Create a release
+      uses: softprops/action-gh-release@v2
+      with:
+        name: v${{ steps.version.outputs.tag }}
+        tag_name: v${{ steps.version.outputs.tag }}
+
+    - name: Push tag
+      run: git tag v${{ steps.version.outputs.tag }} && git push origin v${{ steps.version.outputs.tag }}
