@@ -3,6 +3,7 @@ name: Release
 permissions:
   packages: write
   contents: write
+  pull-requests: write
 
 env:
   REGISTRY: ghcr.io
