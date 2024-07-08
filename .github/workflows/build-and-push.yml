@@ -1,9 +1,6 @@
 name: Release
 
-permissions:
-  packages: write
-  contents: write
-  pull-requests: write
+permissions: write-all
 
 env:
   REGISTRY: ghcr.io
