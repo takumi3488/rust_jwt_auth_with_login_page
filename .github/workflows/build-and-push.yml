@@ -56,14 +56,14 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        gh pr create -B develop -t "release: v${{ steps.version.outputs.tag }}" -b "Release ${{ steps.version.outputs.tag }}"
+        gh pr create -B develop -t "release: v${{ steps.version.outputs.tag }}" -b "Release ${{ steps.version.outputs.tag }}" && \
         gh pr merge --merge
 
     - name: Merge develop to main
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        gh pr create -B main -t "release: v${{ steps.version.outputs.tag }}" -b "Release ${{ steps.version.outputs.tag }}" -H develop
+        gh pr create -B main -t "release: v${{ steps.version.outputs.tag }}" -b "Release ${{ steps.version.outputs.tag }}" -H develop && \
         gh pr merge --merge
 
     - name: Create a release
