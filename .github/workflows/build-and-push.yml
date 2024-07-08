@@ -65,7 +65,7 @@ jobs:
         GH_TOKEN: ${{ github.token }}
       run: |
         gh pr create -B main -t "release: v${{ steps.version.outputs.tag }}" -b "Release ${{ steps.version.outputs.tag }}" -H develop && \
-        gh pr merge --merge
+        gh pr merge develop --merge
 
     - name: Create a release
       uses: softprops/action-gh-release@v2
