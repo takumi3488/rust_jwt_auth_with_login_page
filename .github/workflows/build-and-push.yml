@@ -48,7 +48,9 @@ jobs:
       with:
         context: .
         push: true
-        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.tag }}
+        tags: |
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.tag }}
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
@@ -65,7 +67,7 @@ jobs:
         GH_TOKEN: ${{ github.token }}
       run: |
         gh pr create -B main -t "release: v${{ steps.version.outputs.tag }}" -b "Release ${{ steps.version.outputs.tag }}" -H develop && \
-        gh pr merge --merge
+        gh pr merge develop --merge
 
     - name: Create a release
       uses: softprops/action-gh-release@v2

@@ -16,6 +16,8 @@ RUN strip /work/target/"$(uname -m)"-unknown-linux-musl/release/rust_jwt_auth_wi
 
 FROM gcr.io/distroless/static-debian12
 
-COPY --from=builder /rust_jwt_auth_with_login_page /rust_jwt_auth_with_login_page
+WORKDIR /work
+COPY --from=builder /rust_jwt_auth_with_login_page /work/rust_jwt_auth_with_login_page
+COPY style.css /work/style.css
 
 CMD ["/rust_jwt_auth_with_login_page"]
