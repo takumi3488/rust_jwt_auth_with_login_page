@@ -1,8 +1,11 @@
 use std::env;
 
 use axum::{
-    extract::{Form, State},
-    http::{header::SET_COOKIE, HeaderMap, StatusCode},
+    extract::{Form, Query, State},
+    http::{
+        header::{LOCATION, SET_COOKIE},
+        HeaderMap, StatusCode,
+    },
     response::{AppendHeaders, Html, IntoResponse, Redirect},
     routing::get,
     Router,
@@ -12,21 +15,32 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-const LOGIN_HTML: &str = r#"
+fn login_html(redirect_to: Option<&str>) -> String {
+    format!(
+        "
     <!doctype html>
-    <html lang="en">
+    <html lang=\"en\">
         <head></head>
         <body>
-            <form action="/" method="post">
+            <form action=\"/\" method=\"post\">
                 <label>
                     Enter your password:
-                    <input type="password" name="password">
+                    <input type=\"password\" name=\"password\">
                 </label>
-                <input type="submit" value="Subscribe!">
+                {}
+                <input type=\"submit\" value=\"Subscribe!\">
             </form>
         </body>
     </html>
-    "#;
+    ",
+        redirect_to
+            .map(|url| format!(
+                "<input type=\"hidden\" name=\"redirect_to\" value=\"{}\">",
+                url
+            ))
+            .unwrap_or_default()
+    )
+}
 
 #[tokio::main]
 async fn main() {
@@ -82,14 +96,20 @@ async fn init_router() -> Router {
         .with_state(config)
 }
 
-async fn show_form() -> Html<&'static str> {
-    Html(LOGIN_HTML)
+#[derive(Deserialize, Debug)]
+struct FormQuery {
+    redirect_to: Option<String>,
+}
+
+async fn show_form(query: Query<FormQuery>) -> Html<String> {
+    Html(login_html(query.redirect_to.as_deref()))
 }
 
 #[derive(Deserialize, Debug)]
 #[allow(dead_code)]
 struct Input {
     password: String,
+    redirect_to: Option<String>,
 }
 #[derive(Serialize, Debug)]
 struct Claims {
@@ -110,24 +130,33 @@ async fn accept_form(
         };
         let token = jsonwebtoken::encode(&header, &claims, &key).unwrap();
         (
-            StatusCode::OK,
-            AppendHeaders([(
-                SET_COOKIE,
-                format!(
-                    "token={};Domain={};Max-Age={};Path=/;Secure;HttpOnly;SameSite=None",
-                    token,
-                    config
-                        .cookie_domain
-                        .as_deref()
-                        .unwrap_or(headers.get("host").unwrap().to_str().unwrap()),
-                    config.exp,
+            StatusCode::TEMPORARY_REDIRECT,
+            AppendHeaders([
+                (
+                    SET_COOKIE,
+                    format!(
+                        "token={};Domain={};Max-Age={};Path=/;Secure;HttpOnly;SameSite=None",
+                        token,
+                        config
+                            .cookie_domain
+                            .as_deref()
+                            .unwrap_or(headers.get("host").unwrap().to_str().unwrap()),
+                        config.exp,
+                    ),
                 ),
-            )]),
-            "Welcome!",
+                (LOCATION, input.redirect_to.unwrap_or("/".to_string())),
+            ]),
         )
             .into_response()
     } else {
-        Redirect::temporary("/").into_response()
+        Redirect::temporary(&format!(
+            "/{}",
+            input
+                .redirect_to
+                .map(|r| format!("?redirect_to={}", r))
+                .unwrap_or_default()
+        ))
+        .into_response()
     }
 }
 
@@ -153,7 +182,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method(Method::GET)
-                    .uri("/")
+                    .uri("/?redirect_to=http://example.com")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -162,7 +191,9 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let text = from_utf8(&body).unwrap();
-        assert!(text.contains("Enter your password:"));
+        assert!(
+            text.contains(r#"<input type="hidden" name="redirect_to" value="http://example.com">"#)
+        );
     }
 
     #[tokio::test]
@@ -180,12 +211,14 @@ mod tests {
                     .uri("/")
                     .header("content-type", "application/x-www-form-urlencoded")
                     .header("host", "localhost")
-                    .body(Body::from("password=1234"))
+                    .body(Body::from(
+                        "password=password&redirect_to=http://example.com",
+                    ))
                     .unwrap(),
             )
             .await
             .unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.status(), StatusCode::TEMPORARY_REDIRECT);
         let headers = response.headers();
         assert!(headers.contains_key("set-cookie"));
         assert!(headers
@@ -194,9 +227,11 @@ mod tests {
             .to_str()
             .unwrap()
             .contains("token="));
-        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        let text = from_utf8(&body).unwrap();
-        assert!(text.contains("Welcome!"));
+        assert!(headers.contains_key("location"));
+        assert_eq!(
+            headers.get("location").unwrap().to_str().unwrap(),
+            "http://example.com"
+        );
     }
 
     #[tokio::test]
@@ -217,5 +252,6 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::TEMPORARY_REDIRECT);
+        assert!(!response.headers().contains_key("set-cookie"));
     }
 }
