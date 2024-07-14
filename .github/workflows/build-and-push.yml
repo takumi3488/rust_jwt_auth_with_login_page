@@ -74,6 +74,3 @@ jobs:
       with:
         name: v${{ steps.version.outputs.tag }}
         tag_name: v${{ steps.version.outputs.tag }}
-
-    - name: Push tag
-      run: git tag v${{ steps.version.outputs.tag }} && git push origin v${{ steps.version.outputs.tag }}
