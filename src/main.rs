@@ -13,6 +13,7 @@ use axum::{
 use jsonwebtoken::EncodingKey;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use tower_http::services::ServeFile;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 fn login_html(redirect_to: Option<&str>) -> String {
@@ -20,15 +21,16 @@ fn login_html(redirect_to: Option<&str>) -> String {
         "
     <!doctype html>
     <html lang=\"en\">
-        <head></head>
+        <head>
+            <link rel=\"stylesheet\" href=\"/style.css\">
+        </head>
         <body>
             <form action=\"/\" method=\"post\">
                 <label>
-                    Enter your password:
-                    <input type=\"password\" name=\"password\">
+                    <input type=\"password\" name=\"password\" placeholder=\"Password\">
                 </label>
                 {}
-                <input type=\"submit\" value=\"Subscribe!\">
+                <input type=\"submit\" value=\"Login\">
             </form>
         </body>
     </html>
@@ -93,6 +95,7 @@ async fn init_router() -> Router {
     };
     Router::new()
         .route("/", get(show_form).post(accept_form))
+        .route_service("/style.css", ServeFile::new("style.css"))
         .with_state(config)
 }
 
@@ -130,7 +133,7 @@ async fn accept_form(
         };
         let token = jsonwebtoken::encode(&header, &claims, &key).unwrap();
         (
-            StatusCode::TEMPORARY_REDIRECT,
+            StatusCode::SEE_OTHER,
             AppendHeaders([
                 (
                     SET_COOKIE,
@@ -149,14 +152,20 @@ async fn accept_form(
         )
             .into_response()
     } else {
-        Redirect::temporary(&format!(
-            "/{}",
-            input
-                .redirect_to
-                .map(|r| format!("?redirect_to={}", r))
-                .unwrap_or_default()
-        ))
-        .into_response()
+        (
+            StatusCode::SEE_OTHER,
+            AppendHeaders([(
+                LOCATION,
+                format!(
+                    "/{}",
+                    input
+                        .redirect_to
+                        .map(|r| format!("?redirect_to={}", r))
+                        .unwrap_or_default()
+                ),
+            )]),
+        )
+            .into_response()
     }
 }
 
@@ -218,7 +227,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(response.status(), StatusCode::TEMPORARY_REDIRECT);
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
         let headers = response.headers();
         assert!(headers.contains_key("set-cookie"));
         assert!(headers
@@ -251,7 +260,28 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(response.status(), StatusCode::TEMPORARY_REDIRECT);
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
         assert!(!response.headers().contains_key("set-cookie"));
+    }
+
+    #[tokio::test]
+    async fn test_get_style() {
+        env::set_var("HASHED_PASSWORD", format!("{:x}", Sha256::digest("1234")));
+        env::set_var("JWT_SECRET", "secret");
+        let router = init_router().await;
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .method(Method::GET)
+                    .uri("/style.css")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let text = from_utf8(&body).unwrap();
+        assert!(text.contains("body"));
     }
 }
