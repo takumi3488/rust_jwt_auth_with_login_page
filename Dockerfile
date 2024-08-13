@@ -20,4 +20,4 @@ WORKDIR /work
 COPY --from=builder /rust_jwt_auth_with_login_page /work/rust_jwt_auth_with_login_page
 COPY style.css /work/style.css
 
-CMD ["/rust_jwt_auth_with_login_page"]
+CMD ["/work/rust_jwt_auth_with_login_page"]
