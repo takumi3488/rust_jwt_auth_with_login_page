@@ -9,6 +9,7 @@ chrono = "0.4.38"
 jsonwebtoken = "9.3.0"
 serde = { version = "1.0.203", features = ["derive"] }
 serde_json = "1.0.120"
+serial_test = "3.1.1"
 sha2 = "0.10.8"
 tokio = { version = "1.38.0", features = ["full"] }
 tower-http = { version = "0.5.2", features = ["fs"] }
