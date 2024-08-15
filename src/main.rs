@@ -28,6 +28,7 @@ async fn main() {
 }
 
 #[cfg(test)]
+#[serial_test::serial]
 mod tests {
     use std::{env, str::from_utf8};
 
@@ -35,8 +36,11 @@ mod tests {
         body::{to_bytes, Body},
         http::{Method, Request, StatusCode},
     };
+    use jsonwebtoken::EncodingKey;
     use sha2::{Digest, Sha256};
     use tower::ServiceExt;
+
+    use crate::handler::Claims;
 
     use super::init_router;
 
@@ -120,6 +124,59 @@ mod tests {
             .unwrap();
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         assert!(!response.headers().contains_key("set-cookie"));
+    }
+
+    #[tokio::test]
+    async fn test_accept_form_with_no_password() {
+        env::set_var("HASHED_PASSWORD", format!("{:x}", Sha256::digest("1234")));
+        env::set_var("JWT_SECRET", "secret");
+        let router = init_router().await;
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/")
+                    .header("content-type", "application/x-www-form-urlencoded")
+                    .header("host", "localhost")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_accept_form_with_cookie() {
+        env::set_var("HASHED_PASSWORD", format!("{:x}", Sha256::digest("1234")));
+        env::set_var("JWT_SECRET", "secret");
+        let header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256);
+        let claims = Claims {
+            exp: chrono::Utc::now().timestamp() + 3600i64,
+        };
+        let key = EncodingKey::from_secret("secret".as_ref());
+        let router = init_router().await;
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/")
+                    .header("content-type", "application/x-www-form-urlencoded")
+                    .header("host", "localhost")
+                    .header(
+                        "cookie",
+                        &format!(
+                            "token={}",
+                            jsonwebtoken::encode(&header, &claims, &key).unwrap()
+                        ),
+                    )
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert!(response.headers().contains_key("location"));
     }
 
     #[tokio::test]

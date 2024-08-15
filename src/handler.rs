@@ -7,8 +7,9 @@ use axum::{
     response::{AppendHeaders, Html, IntoResponse},
     Form,
 };
-use jsonwebtoken::EncodingKey;
+use jsonwebtoken::{DecodingKey, EncodingKey};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::state::Config;
@@ -53,12 +54,12 @@ pub async fn show_form(query: Query<FormQuery>) -> Html<String> {
 #[derive(Deserialize, Debug)]
 #[allow(dead_code)]
 pub struct Input {
-    password: String,
+    password: Option<String>,
     redirect_to: Option<String>,
 }
 #[derive(Serialize, Debug)]
-struct Claims {
-    exp: i64,
+pub struct Claims {
+    pub exp: i64,
 }
 
 pub async fn accept_form(
@@ -66,7 +67,49 @@ pub async fn accept_form(
     headers: HeaderMap,
     Form(input): Form<Input>,
 ) -> impl IntoResponse {
-    let hashed_input_password = format!("{:x}", Sha256::digest(input.password));
+    // Redirect if the user is already logged in
+    let payload = headers.get("cookie").and_then(|cookie| {
+        let cookie = cookie.to_str().unwrap();
+        let token = cookie.split(';').find(|c| c.starts_with("token="));
+        token
+            .map(|t| t.split('=').nth(1).unwrap().to_string())
+            .map(|t| {
+                let key = DecodingKey::from_secret(config.jwt_secret.as_ref());
+                jsonwebtoken::decode::<Value>(&t, &key, &jsonwebtoken::Validation::default())
+                    .ok()
+                    .map(|data| data.claims)
+            })
+    });
+    if payload.is_some() {
+        return (
+            StatusCode::SEE_OTHER,
+            AppendHeaders([(
+                LOCATION,
+                input.redirect_to.unwrap_or_else(|| "/".to_string()),
+            )]),
+        )
+            .into_response();
+    }
+
+    // Error if no password is provided
+    if input.password.is_none() {
+        return (
+            StatusCode::BAD_REQUEST,
+            AppendHeaders([(
+                LOCATION,
+                format!(
+                    "/{}",
+                    input
+                        .redirect_to
+                        .map(|r| format!("?redirect_to={}", r))
+                        .unwrap_or_default()
+                ),
+            )]),
+        )
+            .into_response();
+    }
+
+    let hashed_input_password = format!("{:x}", Sha256::digest(input.password.clone().unwrap()));
     if hashed_input_password == config.hashed_password {
         let key = EncodingKey::from_secret(config.jwt_secret.as_ref());
         let header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256);
