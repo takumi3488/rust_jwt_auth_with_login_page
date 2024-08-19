@@ -6,7 +6,7 @@ TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjc5NTUxODc3NDJ9.l5PJbjxZJnb
 # Start the application
 docker compose down
 docker compose up -d --build
-while ! curl -f $BASE_URL/health; do sleep 1; done
+while ! curl -f $BASE_URL/; do sleep 1; done
 
 # / redirect to login page
 res=$(curl $BASE_URL)
@@ -17,10 +17,10 @@ if [[ !("$res" =~ "<title>Login</title>") ]]; then
 fi
 
 # login
-res=$(curl $BASE_URL --data-urlencode "password=1234&redirect_to=$BASE_URL")
-if [[ !("$res" =~ "# rust_jwt_auth_with_login_page") ]]; then
+status=$(curl -X POST $BASE_URL/login --data-urlencode "password=1234&redirect_to=$BASE_URL" -w "%{http_code}")
+if [[ $status != 303 ]]; then
   echo "Test failed: login"
-  echo $res
+  echo "status=$status (expected 303)"
   exit 1
 fi
 

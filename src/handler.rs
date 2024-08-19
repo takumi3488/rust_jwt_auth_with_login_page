@@ -64,25 +64,47 @@ pub struct Claims {
     pub exp: i64,
 }
 
+fn is_logged_in(headers: &HeaderMap, config: &Config) -> bool {
+    headers
+        .get("cookie")
+        .and_then(|cookie| {
+            let cookie = cookie.to_str().unwrap();
+            let token = cookie.split(';').find(|c| c.starts_with("token="));
+            token
+                .map(|t| t.split('=').nth(1).unwrap().to_string())
+                .map(|t| {
+                    let key = DecodingKey::from_secret(config.jwt_secret.as_ref());
+                    jsonwebtoken::decode::<Value>(&t, &key, &jsonwebtoken::Validation::default())
+                        .ok()
+                        .map(|data| data.claims)
+                })
+        })
+        .map(|claims| {
+            let now = chrono::Utc::now().timestamp();
+            claims.map(|c| c["exp"].as_i64().map(|exp| exp > now).unwrap_or(false))
+        })
+        .unwrap_or(None)
+        .unwrap_or(false)
+}
+
+pub async fn check_token(State(config): State<Config>, headers: HeaderMap) -> impl IntoResponse {
+    if is_logged_in(&headers, &config) {
+        StatusCode::OK
+    } else {
+        StatusCode::UNAUTHORIZED
+    }
+    .into_response()
+}
+
 pub async fn accept_form(
     State(config): State<Config>,
     headers: HeaderMap,
     Form(input): Form<Input>,
 ) -> impl IntoResponse {
+    eprintln!("{:?}", input);
+
     // Redirect if the user is already logged in
-    let payload = headers.get("cookie").and_then(|cookie| {
-        let cookie = cookie.to_str().unwrap();
-        let token = cookie.split(';').find(|c| c.starts_with("token="));
-        token
-            .map(|t| t.split('=').nth(1).unwrap().to_string())
-            .map(|t| {
-                let key = DecodingKey::from_secret(config.jwt_secret.as_ref());
-                jsonwebtoken::decode::<Value>(&t, &key, &jsonwebtoken::Validation::default())
-                    .ok()
-                    .map(|data| data.claims)
-            })
-    });
-    if payload.is_some() {
+    if is_logged_in(&headers, &config) {
         return (
             StatusCode::SEE_OTHER,
             AppendHeaders([(
@@ -153,5 +175,50 @@ pub async fn accept_form(
             )]),
         )
             .into_response()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::http::HeaderMap;
+
+    use crate::state::Config;
+
+    use super::*;
+
+    #[test]
+    fn test_is_logged_in() {
+        let mut headers = HeaderMap::new();
+        let config = Config {
+            hashed_password: "hashed_password".to_string(),
+            jwt_secret: "secret".to_string(),
+            exp: 3600,
+            cookie_domain: None,
+        };
+
+        // No cookie
+        assert!(!is_logged_in(&headers, &config));
+
+        // Invalid token
+        headers.insert("cookie", "token=invalid".parse().unwrap());
+        assert!(!is_logged_in(&headers, &config));
+
+        // Expired token
+        let jwt_header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256);
+        let claims = Claims {
+            exp: chrono::Utc::now().timestamp() - 1,
+        };
+        let key = jsonwebtoken::EncodingKey::from_secret(config.jwt_secret.as_ref());
+        let token = jsonwebtoken::encode(&jwt_header, &claims, &key).unwrap();
+        headers.insert("cookie", format!("token={}", token).parse().unwrap());
+        assert!(!is_logged_in(&headers, &config));
+
+        // Valid token
+        let claims = Claims {
+            exp: chrono::Utc::now().timestamp() + 3600,
+        };
+        let token = jsonwebtoken::encode(&jwt_header, &claims, &key).unwrap();
+        headers.insert("cookie", format!("token={}", token).parse().unwrap());
+        assert!(is_logged_in(&headers, &config));
     }
 }
