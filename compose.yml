@@ -1,0 +1,28 @@
+services:
+  login:
+    image: rust:1.79.0-bookworm
+    volumes:
+      - .:/work
+    working_dir: /work
+    env_file:
+      - .env.local
+    command: cargo run
+    healthcheck:
+      test: "curl -f http://localhost:3000 || exit 1"
+      interval: 1s
+      timeout: 1s
+      retries: 30
+      start_period: 5s
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./e2e.conf:/etc/nginx/e2e.conf
+      - ./README.md:/usr/share/nginx/html/README.md
+    depends_on:
+      login:
+        condition: service_healthy
+    restart: always
+    command: ["nginx", "-c", "/etc/nginx/e2e.conf"]
