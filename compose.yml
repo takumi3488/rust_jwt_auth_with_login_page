@@ -3,21 +3,24 @@ services:
     image: rust:1.79.0-bookworm
     volumes:
       - .:/work
+      - /usr/local/cargo/registry
+      - /usr/local/cargo/git
     working_dir: /work
     env_file:
       - .env.local
     command: cargo run
     healthcheck:
       test: "curl -f http://localhost:3000 || exit 1"
-      interval: 1s
-      timeout: 1s
+      interval: 5s
+      timeout: 3s
       retries: 30
-      start_period: 5s
+      start_period: 10s
 
   nginx:
     image: nginx:alpine
     ports:
       - "8080:80"
+      - "3000:3000"
     volumes:
       - ./e2e.conf:/etc/nginx/e2e.conf
       - ./README.md:/usr/share/nginx/html/README.md
