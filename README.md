@@ -1,3 +1,5 @@
+# rust_jwt_auth_with_login_page
+
 ## Environment variables
 
 `HASHED_PASSWORD`: password hashed with sha256

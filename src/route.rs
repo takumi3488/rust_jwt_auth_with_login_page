@@ -4,7 +4,7 @@ use axum::{routing::get, Router};
 use tower_http::services::ServeFile;
 
 use crate::{
-    handler::{accept_form, show_form},
+    handler::{accept_form, check_token, show_form},
     state::Config,
 };
 
@@ -30,6 +30,7 @@ pub async fn init_router() -> Router {
     };
     Router::new()
         .route("/", get(show_form).post(accept_form))
+        .route("/check", get(check_token))
         .route_service("/style.css", ServeFile::new("style.css"))
         .with_state(config)
 }
