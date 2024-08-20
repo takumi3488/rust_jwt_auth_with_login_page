@@ -31,6 +31,9 @@ jobs:
     - name: Test
       run: cargo test --verbose
 
+    - name: E2E
+      run: bash e2e.sh
+
     - name: Lint with Clippy
       run: cargo clippy --all-targets --all-features
     
