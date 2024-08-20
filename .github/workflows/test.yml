@@ -17,6 +17,7 @@ jobs:
       uses: ./.github/actions/cache
     - name: Build test
       run: cargo build --release --verbose
+
   test:
     runs-on: ubuntu-latest
     steps:
