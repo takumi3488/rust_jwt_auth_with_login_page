@@ -101,8 +101,6 @@ pub async fn accept_form(
     headers: HeaderMap,
     Form(input): Form<Input>,
 ) -> impl IntoResponse {
-    eprintln!("{:?}", input);
-
     // Redirect if the user is already logged in
     if is_logged_in(&headers, &config) {
         return (
