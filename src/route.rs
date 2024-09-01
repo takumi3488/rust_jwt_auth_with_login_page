@@ -1,6 +1,6 @@
 use std::env;
 
-use axum::{routing::get, Router};
+use axum::{routing::{get, any}, Router};
 use tower_http::services::ServeFile;
 
 use crate::{
@@ -30,7 +30,7 @@ pub async fn init_router() -> Router {
     };
     Router::new()
         .route("/", get(show_form).post(accept_form))
-        .route("/check", get(check_token))
+        .route("/check", any(check_token))
         .route_service("/style.css", ServeFile::new("style.css"))
         .with_state(config)
 }
