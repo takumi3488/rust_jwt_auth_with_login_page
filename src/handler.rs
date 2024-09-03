@@ -1,3 +1,5 @@
+use std::env;
+
 use axum::{
     extract::{Query, State},
     http::{
@@ -99,13 +101,15 @@ pub async fn accept_form(
             exp: chrono::Utc::now().timestamp() + config.exp,
         };
         let token = jsonwebtoken::encode(&header, &claims, &key).unwrap();
+        let token_key = env::var("TOKEN_KEY").unwrap_or("token".to_string());
         (
             StatusCode::SEE_OTHER,
             AppendHeaders([
                 (
                     SET_COOKIE,
                     format!(
-                        "token={};Domain={};Max-Age={};Path=/;Secure;HttpOnly;SameSite=None",
+                        "{}={};Domain={};Max-Age={};Path=/;Secure;HttpOnly;SameSite=None",
+                        token_key,
                         token,
                         config
                             .cookie_domain
