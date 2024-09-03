@@ -26,7 +26,7 @@ if [ $status != 303 ]; then
 fi
 
 # / not redirect to login page after login
-res=$(curl $BASE_URL -H "cookie: token=$TOKEN")
+res=$(curl $BASE_URL -H "cookie: \"some_key=some_value; token=$TOKEN;\"")
 if [[ !("$res" =~ "# rust_jwt_auth_with_login_page") ]]; then
   echo "Test failed: / not redirect to login page after login"
   echo $res

@@ -43,20 +43,12 @@ pub fn is_logged_in(headers: &HeaderMap, config: &Config) -> bool {
     debug!("CALLED IS LOGGED IN");
     trace!("headers: {:?}", headers);
     trace!("config: {:?}", config);
-    let cookies = headers.get("cookie");
-    trace!("cookies: {:?}", cookies);
-    cookies
-        .and_then(|cookie| {
-            let cookie = cookie.to_str().unwrap();
-            let token = cookie.split(';').find(|c| c.starts_with("token="));
-            token
-                .map(|t| t.split('=').nth(1).unwrap().to_string())
-                .map(|t| {
-                    let key = DecodingKey::from_secret(config.jwt_secret.as_ref());
-                    jsonwebtoken::decode::<Value>(&t, &key, &jsonwebtoken::Validation::default())
-                        .ok()
-                        .map(|data| data.claims)
-                })
+    get_token_from_headers(headers)
+        .map(|token| {
+            let key = DecodingKey::from_secret(config.jwt_secret.as_ref());
+            jsonwebtoken::decode::<Value>(&token, &key, &jsonwebtoken::Validation::default())
+                .ok()
+                .map(|data| data.claims)
         })
         .map(|claims| {
             let now = chrono::Utc::now().timestamp();
@@ -64,4 +56,35 @@ pub fn is_logged_in(headers: &HeaderMap, config: &Config) -> bool {
         })
         .unwrap_or(None)
         .unwrap_or(false)
+}
+
+fn get_token_from_headers(headers: &HeaderMap) -> Option<String> {
+    let token_value = headers.get("cookie").and_then(|cookie| {
+        cookie
+            .to_str()
+            .unwrap()
+            .split(';')
+            .map(|c| c.trim())
+            .find(|&c| c.starts_with("token="))
+            .map(|c| c.to_string())
+    });
+    token_value.map(|t| t.trim().split('=').nth(1).unwrap().to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_token_from_headers() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "cookie",
+            "some_key=some_value; token=some_token;".parse().unwrap(),
+        );
+        assert_eq!(
+            get_token_from_headers(&headers).unwrap(),
+            "some_token".to_string()
+        );
+    }
 }
