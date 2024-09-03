@@ -10,7 +10,7 @@ use axum::{
 use jsonwebtoken::EncodingKey;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tracing::debug;
+use tracing::{debug, trace};
 
 use crate::{
     state::Config,
@@ -24,6 +24,7 @@ pub struct FormQuery {
 
 pub async fn show_form(query: Query<FormQuery>) -> Html<String> {
     debug!("CALLED SHOW FORM");
+    trace!("query: {:?}", query);
     Html(login_html(query.redirect_to.as_deref()))
 }
 
@@ -40,6 +41,8 @@ pub struct Claims {
 
 pub async fn check_token(State(config): State<Config>, headers: HeaderMap) -> impl IntoResponse {
     debug!("CALLED CHECK TOKEN");
+    trace!("config: {:?}", config);
+    trace!("headers: {:?}", headers);
     if is_logged_in(&headers, &config) {
         StatusCode::OK
     } else {
@@ -53,6 +56,11 @@ pub async fn accept_form(
     headers: HeaderMap,
     Form(input): Form<Input>,
 ) -> impl IntoResponse {
+    debug!("CALLED ACCEPT FORM");
+    trace!("config: {:?}", config);
+    trace!("headers: {:?}", headers);
+    trace!("input: {:?}", input);
+
     // Redirect if the user is already logged in
     if is_logged_in(&headers, &config) {
         return (
