@@ -43,8 +43,9 @@ pub fn is_logged_in(headers: &HeaderMap, config: &Config) -> bool {
     debug!("CALLED IS LOGGED IN");
     trace!("headers: {:?}", headers);
     trace!("config: {:?}", config);
-    headers
-        .get("cookie")
+    let cookies = headers.get("cookie");
+    trace!("cookies: {:?}", cookies);
+    cookies
         .and_then(|cookie| {
             let cookie = cookie.to_str().unwrap();
             let token = cookie.split(';').find(|c| c.starts_with("token="));
