@@ -7,42 +7,15 @@ use axum::{
     response::{AppendHeaders, Html, IntoResponse},
     Form,
 };
-use jsonwebtoken::{DecodingKey, EncodingKey};
+use jsonwebtoken::EncodingKey;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use sha2::{Digest, Sha256};
+use tracing::debug;
 
-use crate::state::Config;
-
-fn login_html(redirect_to: Option<&str>) -> String {
-    format!(
-        "
-    <!doctype html>
-    <html lang=\"en\">
-        <head>
-            <meta charset=\"utf-8\">
-            <title>Login</title>
-            <link rel=\"stylesheet\" href=\"/style.css\">
-        </head>
-        <body>
-            <form action=\"/\" method=\"post\">
-                <label>
-                    <input type=\"password\" name=\"password\" placeholder=\"Password\">
-                </label>
-                {}
-                <input type=\"submit\" value=\"Login\">
-            </form>
-        </body>
-    </html>
-    ",
-        redirect_to
-            .map(|url| format!(
-                "<input type=\"hidden\" name=\"redirect_to\" value=\"{}\">",
-                url
-            ))
-            .unwrap_or_default()
-    )
-}
+use crate::{
+    state::Config,
+    util::{is_logged_in, login_html},
+};
 
 #[derive(Deserialize, Debug)]
 pub struct FormQuery {
@@ -50,6 +23,7 @@ pub struct FormQuery {
 }
 
 pub async fn show_form(query: Query<FormQuery>) -> Html<String> {
+    debug!("CALLED SHOW FORM");
     Html(login_html(query.redirect_to.as_deref()))
 }
 
@@ -64,30 +38,8 @@ pub struct Claims {
     pub exp: i64,
 }
 
-fn is_logged_in(headers: &HeaderMap, config: &Config) -> bool {
-    headers
-        .get("cookie")
-        .and_then(|cookie| {
-            let cookie = cookie.to_str().unwrap();
-            let token = cookie.split(';').find(|c| c.starts_with("token="));
-            token
-                .map(|t| t.split('=').nth(1).unwrap().to_string())
-                .map(|t| {
-                    let key = DecodingKey::from_secret(config.jwt_secret.as_ref());
-                    jsonwebtoken::decode::<Value>(&t, &key, &jsonwebtoken::Validation::default())
-                        .ok()
-                        .map(|data| data.claims)
-                })
-        })
-        .map(|claims| {
-            let now = chrono::Utc::now().timestamp();
-            claims.map(|c| c["exp"].as_i64().map(|exp| exp > now).unwrap_or(false))
-        })
-        .unwrap_or(None)
-        .unwrap_or(false)
-}
-
 pub async fn check_token(State(config): State<Config>, headers: HeaderMap) -> impl IntoResponse {
+    debug!("CALLED CHECK TOKEN");
     if is_logged_in(&headers, &config) {
         StatusCode::OK
     } else {
