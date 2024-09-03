@@ -1,3 +1,5 @@
+use std::env;
+
 use axum::http::HeaderMap;
 use jsonwebtoken::DecodingKey;
 use serde_json::Value;
@@ -59,13 +61,14 @@ pub fn is_logged_in(headers: &HeaderMap, config: &Config) -> bool {
 }
 
 fn get_token_from_headers(headers: &HeaderMap) -> Option<String> {
+    let token_key = env::var("TOKEN_KEY").unwrap_or("token".to_string());
     let token_value = headers.get("cookie").and_then(|cookie| {
         cookie
             .to_str()
             .unwrap()
             .split(';')
             .map(|c| c.trim())
-            .find(|&c| c.starts_with("token="))
+            .find(|&c| c.starts_with(&format!("{}=", token_key)))
             .map(|c| c.to_string())
     });
     token_value.map(|t| t.trim().split('=').nth(1).unwrap().to_string())
