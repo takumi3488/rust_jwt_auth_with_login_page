@@ -1,4 +1,4 @@
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Config {
     pub hashed_password: String,
     pub jwt_secret: String,
