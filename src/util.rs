@@ -1,11 +1,14 @@
 use axum::http::HeaderMap;
 use jsonwebtoken::DecodingKey;
 use serde_json::Value;
-use tracing::debug;
+use tracing::{debug, trace};
 
 use crate::state::Config;
 
+#[tracing::instrument]
 pub fn login_html(redirect_to: Option<&str>) -> String {
+    debug!("CALLED LOGIN HTML");
+    trace!("redirect_to: {:?}", redirect_to);
     format!(
         "
     <!doctype html>
@@ -35,8 +38,11 @@ pub fn login_html(redirect_to: Option<&str>) -> String {
     )
 }
 
+#[tracing::instrument]
 pub fn is_logged_in(headers: &HeaderMap, config: &Config) -> bool {
     debug!("CALLED IS LOGGED IN");
+    trace!("headers: {:?}", headers);
+    trace!("config: {:?}", config);
     headers
         .get("cookie")
         .and_then(|cookie| {
