@@ -61,6 +61,7 @@ pub fn is_logged_in(headers: &HeaderMap, config: &Config) -> bool {
 }
 
 fn get_token_from_headers(headers: &HeaderMap) -> Option<String> {
+    // Check for token in cookie
     let token_key = env::var("TOKEN_KEY").unwrap_or("token".to_string());
     let token_value = headers.get("cookie").and_then(|cookie| {
         cookie
@@ -71,7 +72,18 @@ fn get_token_from_headers(headers: &HeaderMap) -> Option<String> {
             .find(|&c| c.starts_with(&format!("{}=", token_key)))
             .map(|c| c.to_string())
     });
-    token_value.map(|t| t.trim().split('=').nth(1).unwrap().to_string())
+
+    // Check for token in authorization header
+    let api_key_value = headers.get("authorization").and_then(|auth| {
+        auth.to_str()
+            .ok()
+            .and_then(|auth| auth.strip_prefix("Bearer "))
+            .map(|auth| auth.to_string())
+    });
+
+    token_value
+        .map(|t| t.trim().split('=').nth(1).unwrap().to_string())
+        .or(api_key_value)
 }
 
 #[cfg(test)]
@@ -85,6 +97,16 @@ mod tests {
             "cookie",
             "some_key=some_value; token=some_token;".parse().unwrap(),
         );
+        assert_eq!(
+            get_token_from_headers(&headers).unwrap(),
+            "some_token".to_string()
+        );
+    }
+
+    #[test]
+    fn test_get_api_key_from_headers() {
+        let mut headers = HeaderMap::new();
+        headers.insert("authorization", "Bearer some_token".parse().unwrap());
         assert_eq!(
             get_token_from_headers(&headers).unwrap(),
             "some_token".to_string()
