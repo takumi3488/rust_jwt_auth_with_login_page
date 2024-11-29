@@ -12,11 +12,11 @@ use axum::{
 use jsonwebtoken::EncodingKey;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tracing::{debug, trace};
+use tracing::{debug, error, trace};
 
 use crate::{
     state::Config,
-    util::{is_logged_in, login_html},
+    util::{is_logged_in_with_jwt, login_html},
 };
 
 #[derive(Deserialize, Debug)]
@@ -45,7 +45,7 @@ pub async fn check_token(State(config): State<Config>, headers: HeaderMap) -> im
     debug!("CALLED CHECK TOKEN");
     trace!("config: {:?}", config);
     trace!("headers: {:?}", headers);
-    if is_logged_in(&headers, &config) {
+    if is_logged_in_with_jwt(&headers, &config) {
         StatusCode::OK
     } else {
         StatusCode::UNAUTHORIZED
@@ -62,9 +62,13 @@ pub async fn accept_form(
     trace!("config: {:?}", config);
     trace!("headers: {:?}", headers);
     trace!("input: {:?}", input);
+    if config.jwt_secret.is_none() || config.hashed_password.is_none() {
+        error!("JWT_SECRET and HASHED_PASSWORD must be set for JWT authentication");
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
 
     // Redirect if the user is already logged in
-    if is_logged_in(&headers, &config) {
+    if is_logged_in_with_jwt(&headers, &config) {
         return (
             StatusCode::SEE_OTHER,
             AppendHeaders([(
@@ -94,8 +98,8 @@ pub async fn accept_form(
     }
 
     let hashed_input_password = format!("{:x}", Sha256::digest(input.password.clone().unwrap()));
-    if hashed_input_password == config.hashed_password {
-        let key = EncodingKey::from_secret(config.jwt_secret.as_ref());
+    if hashed_input_password == config.hashed_password.unwrap() {
+        let key = EncodingKey::from_secret(config.jwt_secret.clone().unwrap().as_ref());
         let header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256);
         let claims = Claims {
             exp: chrono::Utc::now().timestamp() + config.exp,
@@ -152,28 +156,29 @@ mod tests {
     fn test_is_logged_in() {
         let mut headers = HeaderMap::new();
         let config = Config {
-            hashed_password: "hashed_password".to_string(),
-            jwt_secret: "secret".to_string(),
+            hashed_password: Some("hashed_password".to_string()),
+            jwt_secret: Some("secret".to_string()),
             exp: 3600,
             cookie_domain: None,
         };
 
         // No cookie
-        assert!(!is_logged_in(&headers, &config));
+        assert!(!is_logged_in_with_jwt(&headers, &config));
 
         // Invalid token
         headers.insert("cookie", "token=invalid".parse().unwrap());
-        assert!(!is_logged_in(&headers, &config));
+        assert!(!is_logged_in_with_jwt(&headers, &config));
 
         // Expired token
         let jwt_header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256);
         let claims = Claims {
             exp: chrono::Utc::now().timestamp() - 1,
         };
-        let key = jsonwebtoken::EncodingKey::from_secret(config.jwt_secret.as_ref());
+        let key =
+            jsonwebtoken::EncodingKey::from_secret(config.jwt_secret.clone().unwrap().as_ref());
         let token = jsonwebtoken::encode(&jwt_header, &claims, &key).unwrap();
         headers.insert("cookie", format!("token={}", token).parse().unwrap());
-        assert!(!is_logged_in(&headers, &config));
+        assert!(!is_logged_in_with_jwt(&headers, &config));
 
         // Valid token
         let claims = Claims {
@@ -181,6 +186,6 @@ mod tests {
         };
         let token = jsonwebtoken::encode(&jwt_header, &claims, &key).unwrap();
         headers.insert("cookie", format!("token={}", token).parse().unwrap());
-        assert!(is_logged_in(&headers, &config));
+        assert!(is_logged_in_with_jwt(&headers, &config));
     }
 }

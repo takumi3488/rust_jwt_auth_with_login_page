@@ -41,13 +41,18 @@ pub fn login_html(redirect_to: Option<&str>) -> String {
 }
 
 #[tracing::instrument]
-pub fn is_logged_in(headers: &HeaderMap, config: &Config) -> bool {
+pub fn is_logged_in_with_jwt(headers: &HeaderMap, config: &Config) -> bool {
     debug!("CALLED IS LOGGED IN");
     trace!("headers: {:?}", headers);
     trace!("config: {:?}", config);
+    if config.jwt_secret.as_ref().is_none_or(|s| s.is_empty())
+        || config.hashed_password.as_ref().is_none_or(|p| p.is_empty())
+    {
+        return false;
+    }
     get_token_from_headers(headers)
         .map(|token| {
-            let key = DecodingKey::from_secret(config.jwt_secret.as_ref());
+            let key = DecodingKey::from_secret(config.jwt_secret.clone().unwrap().as_bytes());
             jsonwebtoken::decode::<Value>(&token, &key, &jsonwebtoken::Validation::default())
                 .ok()
                 .map(|data| data.claims)
