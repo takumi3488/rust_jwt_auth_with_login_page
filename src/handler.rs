@@ -16,7 +16,7 @@ use tracing::{debug, error, trace};
 
 use crate::{
     state::Config,
-    util::{is_logged_in_with_jwt, login_html},
+    util::{is_logged_in, login_html},
 };
 
 #[derive(Deserialize, Debug)]
@@ -45,7 +45,7 @@ pub async fn check_token(State(config): State<Config>, headers: HeaderMap) -> im
     debug!("CALLED CHECK TOKEN");
     trace!("config: {:?}", config);
     trace!("headers: {:?}", headers);
-    if is_logged_in_with_jwt(&headers, &config) {
+    if is_logged_in(&headers, &config) {
         StatusCode::OK
     } else {
         StatusCode::UNAUTHORIZED
@@ -68,7 +68,7 @@ pub async fn accept_form(
     }
 
     // Redirect if the user is already logged in
-    if is_logged_in_with_jwt(&headers, &config) {
+    if is_logged_in(&headers, &config) {
         return (
             StatusCode::SEE_OTHER,
             AppendHeaders([(
@@ -160,14 +160,15 @@ mod tests {
             jwt_secret: Some("secret".to_string()),
             exp: 3600,
             cookie_domain: None,
+            hashed_bearer_token: None,
         };
 
         // No cookie
-        assert!(!is_logged_in_with_jwt(&headers, &config));
+        assert!(!is_logged_in(&headers, &config));
 
         // Invalid token
         headers.insert("cookie", "token=invalid".parse().unwrap());
-        assert!(!is_logged_in_with_jwt(&headers, &config));
+        assert!(!is_logged_in(&headers, &config));
 
         // Expired token
         let jwt_header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256);
@@ -178,7 +179,7 @@ mod tests {
             jsonwebtoken::EncodingKey::from_secret(config.jwt_secret.clone().unwrap().as_ref());
         let token = jsonwebtoken::encode(&jwt_header, &claims, &key).unwrap();
         headers.insert("cookie", format!("token={}", token).parse().unwrap());
-        assert!(!is_logged_in_with_jwt(&headers, &config));
+        assert!(!is_logged_in(&headers, &config));
 
         // Valid token
         let claims = Claims {
@@ -186,6 +187,19 @@ mod tests {
         };
         let token = jsonwebtoken::encode(&jwt_header, &claims, &key).unwrap();
         headers.insert("cookie", format!("token={}", token).parse().unwrap());
-        assert!(is_logged_in_with_jwt(&headers, &config));
+        assert!(is_logged_in(&headers, &config));
+
+        // Valid bearer token
+        let hashed_bearer_token = format!("{:x}", Sha256::digest("bearer_token"));
+        let config = Config {
+            hashed_password: None,
+            jwt_secret: None,
+            exp: 3600,
+            cookie_domain: None,
+            hashed_bearer_token: Some(hashed_bearer_token),
+        };
+        headers.remove("cookie");
+        headers.insert("authorization", "Bearer bearer_token".parse().unwrap());
+        assert!(is_logged_in(&headers, &config));
     }
 }

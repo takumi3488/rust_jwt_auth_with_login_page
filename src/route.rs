@@ -29,11 +29,16 @@ pub async fn init_router() -> Router {
         Ok(domain) => Some(domain),
         Err(_) => None,
     };
+
+    // Load environment variables for Bearer token authentication
+    let hashed_bearer_token = env::var("HASHED_BEARER_TOKEN").ok();
+
     let config = Config {
         hashed_password,
         jwt_secret,
         exp,
         cookie_domain,
+        hashed_bearer_token,
     };
     Router::new()
         .route("/", get(show_form).post(accept_form))

@@ -32,3 +32,11 @@ if [[ !("$res" =~ "# rust_jwt_auth_with_login_page") ]]; then
   echo $res
   exit 1
 fi
+
+# / not redirect to login page with bearer token
+res=$(curl $BASE_URL -H "Authorization: Bearer 1234")
+if [[ !("$res" =~ "# rust_jwt_auth_with_login_page") ]]; then
+  echo "Test failed: / not redirect to login page with bearer token"
+  echo $res
+  exit 1
+fi
