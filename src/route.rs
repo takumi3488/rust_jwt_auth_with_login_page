@@ -9,10 +9,17 @@ use crate::{
 };
 
 pub async fn init_router() -> Router {
-    let hashed_password = env::var("HASHED_PASSWORD").expect("HASHED_PASSWORD must be set");
-    let jwt_secret = env::var("JWT_SECRET").expect("JWT_SECRET must be set");
-    if hashed_password.is_empty() || jwt_secret.is_empty() {
-        panic!("HASHED_PASSWORD and JWT_SECRET must be set");
+    // Load environment variables for JWT authentication
+    let hashed_password = env::var("HASHED_PASSWORD").ok();
+    let jwt_secret = env::var("JWT_SECRET").ok();
+    if hashed_password.as_ref().is_none_or(|p| p.is_empty())
+        && jwt_secret.as_ref().is_some_and(|s| !s.is_empty())
+    {
+        panic!("HASHED_PASSWORD must be set if JWT_SECRET is set");
+    } else if jwt_secret.as_ref().is_none_or(|s| s.is_empty())
+        && !hashed_password.as_ref().is_some_and(|p| !p.is_empty())
+    {
+        panic!("JWT_SECRET must be set if HASHED_PASSWORD is set");
     }
     let exp: i64 = env::var("JWT_EXP")
         .unwrap_or("3600".to_string())
@@ -22,11 +29,16 @@ pub async fn init_router() -> Router {
         Ok(domain) => Some(domain),
         Err(_) => None,
     };
+
+    // Load environment variables for Bearer token authentication
+    let hashed_bearer_token = env::var("HASHED_BEARER_TOKEN").ok();
+
     let config = Config {
         hashed_password,
         jwt_secret,
         exp,
         cookie_domain,
+        hashed_bearer_token,
     };
     Router::new()
         .route("/", get(show_form).post(accept_form))
