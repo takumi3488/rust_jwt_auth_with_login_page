@@ -93,18 +93,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "axum-auth"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8169113a185f54f68614fcfc3581df585d30bf8542bcb99496990e1025e4120a"
-dependencies = [
- "async-trait",
- "axum-core",
- "base64 0.21.7",
- "http",
-]
-
-[[package]]
 name = "axum-core"
 version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -836,7 +824,6 @@ name = "rust_jwt_auth_with_login_page"
 version = "0.1.12"
 dependencies = [
  "axum",
- "axum-auth",
  "chrono",
  "jsonwebtoken",
  "serde",
@@ -1280,9 +1267,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-subscriber"
-version = "0.3.18"
+version = "0.3.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad0f048c97dbd9faa9b7df56362b8ebcaa52adb06b498c050d2f4e32f90a7a8b"
+checksum = "e8189decb5ac0fa7bc8b96b7cb9b2701d60d48805aca84a238004d665fcc4008"
 dependencies = [
  "matchers",
  "nu-ansi-term",
